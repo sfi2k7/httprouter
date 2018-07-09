@@ -162,7 +162,6 @@ type Router struct {
 }
 
 // Make sure the Router conforms with the http.Handler interface
-var _ http.Handler = New()
 
 // New returns a new initialized Router.
 // Path auto-correction, including trailing slashes, is enabled by default.
@@ -176,37 +175,37 @@ func New() *Router {
 }
 
 // GET is a shortcut for router.Handle("GET", path, handle)
-func (r *Router) GET(path string, handle Handle) {
+func (r *Router) GET(path string, handle string) {
 	r.Handle("GET", path, handle)
 }
 
 // HEAD is a shortcut for router.Handle("HEAD", path, handle)
-func (r *Router) HEAD(path string, handle Handle) {
+func (r *Router) HEAD(path string, handle string) {
 	r.Handle("HEAD", path, handle)
 }
 
 // OPTIONS is a shortcut for router.Handle("OPTIONS", path, handle)
-func (r *Router) OPTIONS(path string, handle Handle) {
+func (r *Router) OPTIONS(path string, handle string) {
 	r.Handle("OPTIONS", path, handle)
 }
 
 // POST is a shortcut for router.Handle("POST", path, handle)
-func (r *Router) POST(path string, handle Handle) {
+func (r *Router) POST(path string, handle string) {
 	r.Handle("POST", path, handle)
 }
 
 // PUT is a shortcut for router.Handle("PUT", path, handle)
-func (r *Router) PUT(path string, handle Handle) {
+func (r *Router) PUT(path string, handle string) {
 	r.Handle("PUT", path, handle)
 }
 
 // PATCH is a shortcut for router.Handle("PATCH", path, handle)
-func (r *Router) PATCH(path string, handle Handle) {
+func (r *Router) PATCH(path string, handle string) {
 	r.Handle("PATCH", path, handle)
 }
 
 // DELETE is a shortcut for router.Handle("DELETE", path, handle)
-func (r *Router) DELETE(path string, handle Handle) {
+func (r *Router) DELETE(path string, handle string) {
 	r.Handle("DELETE", path, handle)
 }
 
@@ -218,7 +217,7 @@ func (r *Router) DELETE(path string, handle Handle) {
 // This function is intended for bulk loading and to allow the usage of less
 // frequently used, non-standardized or custom methods (e.g. for internal
 // communication with a proxy).
-func (r *Router) Handle(method, path string, handle Handle) {
+func (r *Router) Handle(method, path string, handle string) {
 	if path[0] != '/' {
 		panic("path must begin with '/' in path '" + path + "'")
 	}
@@ -236,11 +235,11 @@ func (r *Router) Handle(method, path string, handle Handle) {
 	root.addRoute(path, handle)
 }
 
-// HandlerFunc is an adapter which allows the usage of an http.HandlerFunc as a
-// request handle.
-func (r *Router) HandlerFunc(method, path string, handler http.HandlerFunc) {
-	r.Handler(method, path, handler)
-}
+// // HandlerFunc is an adapter which allows the usage of an http.HandlerFunc as a
+// // request handle.
+// func (r *Router) HandlerFunc(method, path string, handler string) {
+// 	r.Handler(method, path, handler)
+// }
 
 // ServeFiles serves files from the given file system root.
 // The path must end with "/*filepath", files are then served from the local
@@ -252,18 +251,18 @@ func (r *Router) HandlerFunc(method, path string, handler http.HandlerFunc) {
 // To use the operating system's file system implementation,
 // use http.Dir:
 //     router.ServeFiles("/src/*filepath", http.Dir("/var/www"))
-func (r *Router) ServeFiles(path string, root http.FileSystem) {
-	if len(path) < 10 || path[len(path)-10:] != "/*filepath" {
-		panic("path must end with /*filepath in path '" + path + "'")
-	}
+// func (r *Router) ServeFiles(path string, root http.FileSystem) {
+// 	if len(path) < 10 || path[len(path)-10:] != "/*filepath" {
+// 		panic("path must end with /*filepath in path '" + path + "'")
+// 	}
 
-	fileServer := http.FileServer(root)
+// 	fileServer := http.FileServer(root)
 
-	r.GET(path, func(w http.ResponseWriter, req *http.Request, ps Params) {
-		req.URL.Path = ps.ByName("filepath")
-		fileServer.ServeHTTP(w, req)
-	})
-}
+// 	r.GET(path, func(w http.ResponseWriter, req *http.Request, ps Params) {
+// 		req.URL.Path = ps.ByName("filepath")
+// 		fileServer.ServeHTTP(w, req)
+// 	})
+// }
 
 func (r *Router) recv(w http.ResponseWriter, req *http.Request) {
 	if rcv := recover(); rcv != nil {
@@ -276,11 +275,11 @@ func (r *Router) recv(w http.ResponseWriter, req *http.Request) {
 // If the path was found, it returns the handle function and the path parameter
 // values. Otherwise the third return value indicates whether a redirection to
 // the same path with an extra / without the trailing slash should be performed.
-func (r *Router) Lookup(method, path string) (Handle, Params, bool) {
+func (r *Router) Lookup(method, path string) (string, Params, bool) {
 	if root := r.trees[method]; root != nil {
 		return root.getValue(path)
 	}
-	return nil, nil, false
+	return "", nil, false
 }
 
 func (r *Router) allowed(path, reqMethod string) (allow string) {
@@ -305,7 +304,7 @@ func (r *Router) allowed(path, reqMethod string) (allow string) {
 			}
 
 			handle, _, _ := r.trees[method].getValue(path)
-			if handle != nil {
+			if handle != "" {
 				// add request method to list of allowed methods
 				if len(allow) == 0 {
 					allow = method
@@ -322,20 +321,17 @@ func (r *Router) allowed(path, reqMethod string) (allow string) {
 }
 
 // ServeHTTP makes the router implement the http.Handler interface.
-func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if r.PanicHandler != nil {
-		defer r.recv(w, req)
-	}
+func (r *Router) ServeHTTP(path string, method string) (string, string, int) {
+	// if r.PanicHandler != nil {
+	// 	defer r.recv(w, req)
+	// }
 
-	path := req.URL.Path
-
-	if root := r.trees[req.Method]; root != nil {
-		if handle, ps, tsr := root.getValue(path); handle != nil {
-			handle(w, req, ps)
-			return
-		} else if req.Method != "CONNECT" && path != "/" {
+	if root := r.trees[method]; root != nil {
+		if handle, _, tsr := root.getValue(path); handle != "" { //TODO:Bring back ps instead of _
+			return handle, "", 200
+		} else if method != "CONNECT" && path != "/" {
 			code := 301 // Permanent redirect, request with GET method
-			if req.Method != "GET" {
+			if method != "GET" {
 				// Temporary redirect, request with same method
 				// As of Go 1.3, Go does not support status code 308.
 				code = 307
@@ -343,12 +339,11 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 			if tsr && r.RedirectTrailingSlash {
 				if len(path) > 1 && path[len(path)-1] == '/' {
-					req.URL.Path = path[:len(path)-1]
+					path = path[:len(path)-1]
 				} else {
-					req.URL.Path = path + "/"
+					path = path + "/"
 				}
-				http.Redirect(w, req, req.URL.String(), code)
-				return
+				return "", path, code
 			}
 
 			// Try to fix the request path
@@ -358,42 +353,42 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 					r.RedirectTrailingSlash,
 				)
 				if found {
-					req.URL.Path = string(fixedPath)
-					http.Redirect(w, req, req.URL.String(), code)
-					return
+					path = string(fixedPath)
+					return "", path, code
 				}
 			}
 		}
 	}
 
-	if req.Method == "OPTIONS" && r.HandleOPTIONS {
-		// Handle OPTIONS requests
-		if allow := r.allowed(path, req.Method); len(allow) > 0 {
-			w.Header().Set("Allow", allow)
-			return
-		}
-	} else {
-		// Handle 405
-		if r.HandleMethodNotAllowed {
-			if allow := r.allowed(path, req.Method); len(allow) > 0 {
-				w.Header().Set("Allow", allow)
-				if r.MethodNotAllowed != nil {
-					r.MethodNotAllowed.ServeHTTP(w, req)
-				} else {
-					http.Error(w,
-						http.StatusText(http.StatusMethodNotAllowed),
-						http.StatusMethodNotAllowed,
-					)
-				}
-				return
-			}
-		}
-	}
+	// if method == "OPTIONS" && r.HandleOPTIONS {
+	// 	// Handle OPTIONS requests
+	// 	if allow := r.allowed(path, method); len(allow) > 0 {
+	// 		w.Header().Set("Allow", allow)
+	// 		return
+	// 	}
+	// } else {
+	// 	// Handle 405
+	// 	if r.HandleMethodNotAllowed {
+	// 		if allow := r.allowed(path, method); len(allow) > 0 {
+	// 			w.Header().Set("Allow", allow)
+	// 			if r.MethodNotAllowed != nil {
+	// 				r.MethodNotAllowed.ServeHTTP(w, req)
+	// 			} else {
+	// 				http.Error(w,
+	// 					http.StatusText(http.StatusMethodNotAllowed),
+	// 					http.StatusMethodNotAllowed,
+	// 				)
+	// 			}
+	// 			return
+	// 		}
+	// 	}
+	// }
 
+	return "404", "", 200
 	// Handle 404
-	if r.NotFound != nil {
-		r.NotFound.ServeHTTP(w, req)
-	} else {
-		http.NotFound(w, req)
-	}
+	// if r.NotFound != nil {
+	// 	r.NotFound.ServeHTTP(w, req)
+	// } else {
+	// 	http.NotFound(w, req)
+	// }
 }
