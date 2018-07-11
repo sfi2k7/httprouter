@@ -321,43 +321,44 @@ func (r *Router) allowed(path, reqMethod string) (allow string) {
 }
 
 // ServeHTTP makes the router implement the http.Handler interface.
-func (r *Router) ServeHTTP(path string, method string) (string, string, int) {
+func (r *Router) ServeHTTP(path string, method string) (string, string, int, Params) {
 	// if r.PanicHandler != nil {
 	// 	defer r.recv(w, req)
 	// }
 
 	if root := r.trees[method]; root != nil {
-		if handle, _, tsr := root.getValue(path); handle != "" { //TODO:Bring back ps instead of _
-			return handle, "", 200
-		} else if method != "CONNECT" && path != "/" {
-			code := 301 // Permanent redirect, request with GET method
-			if method != "GET" {
-				// Temporary redirect, request with same method
-				// As of Go 1.3, Go does not support status code 308.
-				code = 307
-			}
-
-			if tsr && r.RedirectTrailingSlash {
-				if len(path) > 1 && path[len(path)-1] == '/' {
-					path = path[:len(path)-1]
-				} else {
-					path = path + "/"
-				}
-				return "", path, code
-			}
-
-			// Try to fix the request path
-			if r.RedirectFixedPath {
-				fixedPath, found := root.findCaseInsensitivePath(
-					CleanPath(path),
-					r.RedirectTrailingSlash,
-				)
-				if found {
-					path = string(fixedPath)
-					return "", path, code
-				}
-			}
+		if handle, ps, _ := root.getValue(path); handle != "" { //TODO:Bring back ps instead of _
+			return handle, "", 200, ps
 		}
+		// else if method != "CONNECT" && path != "/" {
+		// 	code := 301 // Permanent redirect, request with GET method
+		// 	if method != "GET" {
+		// 		// Temporary redirect, request with same method
+		// 		// As of Go 1.3, Go does not support status code 308.
+		// 		code = 307
+		// 	}
+
+		// 	if tsr && r.RedirectTrailingSlash {
+		// 		if len(path) > 1 && path[len(path)-1] == '/' {
+		// 			path = path[:len(path)-1]
+		// 		} else {
+		// 			path = path + "/"
+		// 		}
+		// 		return "", path, code
+		// 	}
+
+		// 	// Try to fix the request path
+		// 	if r.RedirectFixedPath {
+		// 		fixedPath, found := root.findCaseInsensitivePath(
+		// 			CleanPath(path),
+		// 			r.RedirectTrailingSlash,
+		// 		)
+		// 		if found {
+		// 			path = string(fixedPath)
+		// 			return "", path, code
+		// 		}
+		// 	}
+		// }
 	}
 
 	// if method == "OPTIONS" && r.HandleOPTIONS {
@@ -384,7 +385,7 @@ func (r *Router) ServeHTTP(path string, method string) (string, string, int) {
 	// 	}
 	// }
 
-	return "404", "", 200
+	return "404", "", 200, nil
 	// Handle 404
 	// if r.NotFound != nil {
 	// 	r.NotFound.ServeHTTP(w, req)
